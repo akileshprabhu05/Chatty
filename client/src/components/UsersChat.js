@@ -4,7 +4,6 @@ import { SkeletonLoader } from '.';
 import { useUserContext } from '../context/userContext';
 import { getSender, getSendersFullDetails } from '../utils/helpers';
 import { Box, VStack, Text, Divider, Avatar, HStack } from '@chakra-ui/react';
-import { AssistantChatBox } from "cs-chatbot-client";
 
 function UsersChat() {
   const { currentUser } = useUserContext();
@@ -12,14 +11,6 @@ function UsersChat() {
     useChatContext();
 
 
-    useEffect(() => {
-      AssistantChatBox({
-         headerColor: '#FF5733',
-         senderMessageColor: '#3498db',
-         chatbotName: 'Chatty Helper',
-         serverUrl: 'http://localhost:3000/chatbot', 
-      });
-   }, []);
   useEffect(() => {
     fetchUserChats();
   }, [fetchFlag, currentUser]);

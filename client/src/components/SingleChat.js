@@ -1,10 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import { useChatContext } from '../context/chatContext';
 import { IoArrowBackOutline } from 'react-icons/io5';
+import { MdExpand } from 'react-icons/md';
+import { FaPaperPlane } from 'react-icons/fa';
 import { getSender, getSendersFullDetails } from '../utils/helpers';
 import { useUserContext } from '../context/userContext';
 import bcg2 from '../assets/bcg-2.png';
-import bcg from '../assets/bcg.png';
+import { Textarea } from '@chakra-ui/react';
 import axios from 'axios';
 import io from 'socket.io-client';
 import {
@@ -25,6 +27,9 @@ import {
   Avatar,
   HStack,
   Input,
+  InputGroup,
+  InputRightElement,
+  Spinner,
 } from '@chakra-ui/react';
 
 let socket;
@@ -47,29 +52,27 @@ function SingleChat() {
   const [typing, setTyping] = useState(false);
   const [isTyping, setIsTyping] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [expanding, setExpanding] = useState(false);
+  const [sending, setSending] = useState(false);
   const toast = useToast();
 
   const fetchMessages = async () => {
-    if (!selectedChat) {
-      return;
-    }
+    if (!selectedChat) return;
     try {
       setLoading(true);
       const response = await axios.get(`/api/message/${selectedChat._id}`);
-      const { data } = response.data;
-      setMessages(data);
+      setMessages(response.data.data);
       setLoading(false);
       socket.emit('join_room', {
         room: selectedChat._id,
         users: selectedChat.users,
       });
     } catch (error) {
-      const { message } = error.response.data;
       setLoading(false);
-      return toast({
+      toast({
         position: 'top',
-        title: 'Error occured',
-        description: message,
+        title: 'Error occurred',
+        description: error.response?.data?.message || 'Failed to load messages',
         status: 'error',
         duration: 5000,
         isClosable: true,
@@ -77,49 +80,81 @@ function SingleChat() {
     }
   };
 
-  const sendMessage = async (e) => {
-    if (e.key === 'Enter' && newMessage) {
-      try {
-        const body = {
-          chatId: selectedChat._id,
-          content: newMessage,
-        };
-        setNewMessage('');
-        const response = await axios.post('/api/message', body);
-        const { data } = response.data;
-        socket.emit('new_message', data);
-        socket.emit('stop_typing', selectedChat._id);
-        setMessages((prev) => {
-          return [...prev, data];
-        });
-      } catch (error) {
-        const { message } = error.response.data;
-        return toast({
-          position: 'top',
-          title: 'Error occured',
-          description: message,
-          status: 'error',
-          duration: 5000,
-          isClosable: true,
-        });
-      }
+  const sendMessage = async () => {
+    if (!newMessage.trim()) return;
+    try {
+      setSending(true);
+      const body = {
+        chatId: selectedChat._id,
+        content: newMessage,
+      };
+      setNewMessage('');
+      const response = await axios.post('/api/message', body);
+      socket.emit('new_message', response.data.data);
+      socket.emit('stop_typing', selectedChat._id);
+      setMessages((prev) => [...prev, response.data.data]);
+    } catch (error) {
+      toast({
+        position: 'top',
+        title: 'Error occurred',
+        description: error.response?.data?.message || 'Message failed',
+        status: 'error',
+        duration: 5000,
+        isClosable: true,
+      });
+    } finally {
+      setSending(false);
     }
   };
 
   const handleTyping = (e) => {
     setNewMessage(e.target.value);
-    if (!socketConnected) {
-      return;
+    if (!socketConnected) return;
+    if (!typing) {
+      setTyping(true);
+      socket.emit('typing', selectedChat._id);
     }
-    setTyping(true);
-    socket.emit('typing', selectedChat._id);
-    if (timeout) {
-      clearTimeout(timeout);
-    }
+
+    if (timeout) clearTimeout(timeout);
+
     timeout = setTimeout(() => {
       setTyping(false);
       socket.emit('stop_typing', selectedChat._id);
     }, 3000);
+  };
+
+  const expandMessage = async () => {
+    if (!newMessage.trim()) {
+      toast({
+        title: 'Enter a message first',
+        status: 'info',
+        duration: 3000,
+        isClosable: true,
+      });
+      return;
+    }
+
+    try {
+      setExpanding(true);
+      const response = await axios.post('/generate-reason', {
+        shortReason: newMessage,
+      },{
+        headers: {
+          'Content-Type': 'application/json',
+        }
+      });
+      setNewMessage(response.data.fullReason || '');
+    } catch (error) {
+      toast({
+        title: 'Expansion failed',
+        description: 'Could not generate detailed message',
+        status: 'error',
+        duration: 4000,
+        isClosable: true,
+      });
+    } finally {
+      setExpanding(false);
+    }
   };
 
   useEffect(() => {
@@ -135,18 +170,12 @@ function SingleChat() {
     socket.on('stop_typing', () => setIsTyping(false));
     socket.on('new_message_recieved', (message) => {
       if (!selectedChatBackup || selectedChatBackup._id !== message.chat._id) {
-        if (!notification.includes(message)) {
-          setNotification((prev) => {
-            return [message, ...prev];
-          });
-          setFetchFlag((prev) => {
-            return !prev;
-          });
+        if (!notification.some((n) => n._id === message._id)) {
+          setNotification((prev) => [message, ...prev]);
+          setFetchFlag((prev) => !prev);
         }
       } else {
-        setMessages((prev) => {
-          return [...prev, message];
-        });
+        setMessages((prev) => [...prev, message]);
       }
     });
   }, []);
@@ -174,7 +203,7 @@ function SingleChat() {
           >
             <IconButton
               icon={<IoArrowBackOutline />}
-              d={{ base: 'flex', md: 'none' }}
+              display={{ base: 'flex', md: 'none' }}
               onClick={() => setSelectedChat(null)}
             />
             {!selectedChat.isGroupChat ? (
@@ -220,6 +249,7 @@ function SingleChat() {
               </>
             )}
           </Flex>
+
           <Flex
             w='100%'
             h='100%'
@@ -235,16 +265,50 @@ function SingleChat() {
                 <ScrollableChat messages={messages} />
               </Flex>
             )}
+
             <Box py='2' px='4' bg='gray.100'>
-              <FormControl onKeyDown={sendMessage} isRequired>
-                <Input
-                  bg='white'
-                  focusBorderColor='none'
-                  borderRadius='full'
-                  placeholder='Write your message'
-                  value={newMessage}
-                  onChange={handleTyping}
-                />
+              <FormControl isRequired>
+                <Flex alignItems="flex-end" gap="2">
+                <Textarea
+  value={newMessage}
+  onChange={(e) => {
+    handleTyping(e);
+    const textarea = e.target;
+    textarea.style.height = "auto"; // Reset to get accurate scrollHeight
+    textarea.style.height = `${Math.min(textarea.scrollHeight, 240)}px`; // Max height ~10 lines (24px x 10)
+  }}
+  placeholder="Write your message"
+  resize="none"
+  minH="240px"
+  maxH="450px" // 10 lines * approx. 24px line height
+  overflowY="auto"
+  bg="white"
+  borderRadius="lg"
+  px="4"
+  py="2"
+  flex="1"
+/>
+
+                  <Flex gap="2" pb="2">
+                    <IconButton
+                      aria-label='Expand'
+                      icon={expanding ? <Spinner size='sm' /> : <MdExpand />}
+                      size='sm'
+                      bg='gray.200'
+                      borderRadius='full'
+                      onClick={expandMessage}
+                    />
+                    <IconButton
+                      aria-label='Send'
+                      icon={sending ? <Spinner size='sm' /> : <FaPaperPlane />}
+                      size='sm'
+                      bg='whatsapp.500'
+                      color='white'
+                      borderRadius='full'
+                      onClick={sendMessage}
+                    />
+                  </Flex>
+                </Flex>
               </FormControl>
             </Box>
           </Flex>
@@ -272,7 +336,7 @@ function SingleChat() {
             </Text>
             <Text textAlign='center' fontWeight='300' color='gray.400'>
               Chatty is centralized and doesn't need phone to be connected.
-              Also its not End-To-End Encrypted, so chat wisely.
+              Also, it is not End-To-End Encrypted, so chat wisely.
             </Text>
           </VStack>
           <Box w='100%' h='10px' alignSelf='flex-end' bg='whatsapp.400'></Box>
