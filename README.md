@@ -5,13 +5,6 @@
 <p align='center'>
   <b>WhatsApp Clone Built Using MERN Stack + Socket.IO + Flask AI</b>
 </p>
-
-<p align='center'>
-  <a href='https://tomper-chat.onrender.com/' target='_blank'>tomper-chat.onrender.com</a> (cloud-based)  
-  <br/>
-  <a href='https://tc.varuntiwari.com' target='_blank'>tc.varuntiwari.com</a> (self-hosted)
-</p>
-
 ---
 
 <p align='center'>
