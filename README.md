@@ -1,6 +1,4 @@
-<p align='center'>
-  <img src='./client/src/assets/loTomperChatgo.svg' width='25%'>
-</p>
+
 
 <p align='center'>
   <b>WhatsApp Clone Built Using MERN Stack + Socket.IO + Flask AI</b>
@@ -8,7 +6,7 @@
 ---
 
 <p align='center'>
-  This is the frontend + backend of a chat app built with the MERN stack and hosted with <a href='https://www.render.com/' target='_blank'>Render</a>.
+  This is the frontend + backend of a chat app built with the MERN stack.
 </p>
 
 <p align='center'>
